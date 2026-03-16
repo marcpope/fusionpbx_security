@@ -48,10 +48,11 @@ elif [ "$REG_COUNT" -lt 3 ]; then
     ISSUES=1
 fi
 
-# 4. Check for SQLite contention (last 5000 lines of log)
-SQLITE_BUSY=$(tail -5000 /var/log/freeswitch/freeswitch.log 2>/dev/null | grep -c 'SQLite is BUSY')
-if [ "$SQLITE_BUSY" -gt 10 ]; then
-    alert "warning" "High SQLite contention: $SQLITE_BUSY BUSY warnings in recent log"
+# 4. Check for SQLite contention (sane value shows retries remaining out of 300)
+# sane=299 means resolved on 2nd try (normal). Alert when sane drops to 280 or lower.
+SQLITE_LOW_SANE=$(tail -5000 /var/log/freeswitch/freeswitch.log 2>/dev/null | grep -oP 'sane=\K\d+' | sort -n | head -1)
+if [ -n "$SQLITE_LOW_SANE" ] && [ "$SQLITE_LOW_SANE" -le 280 ]; then
+    alert "warning" "SQLite contention: sane=$SQLITE_LOW_SANE (retries exhausting, 0=failed request)"
     ISSUES=1
 fi
 
