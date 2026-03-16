@@ -25,21 +25,25 @@ if [ $? -ne 0 ] || [ -z "$FS_STATUS" ]; then
 fi
 
 # 2. Check gateway registrations
+# Gateways using IP-based auth (e.g. BulkVS, AWS Chime) show NOREG which is normal.
+# Only alert on states like FAIL_WAIT, TRYING, UNREGED — not REGED or NOREG.
 GATEWAYS=$(timeout 10 /usr/bin/fs_cli -x 'sofia status' 2>/dev/null)
 TOTAL_GW=$(echo "$GATEWAYS" | awk '$2=="gateway" {total++} END {print total+0}')
-REGED_GW=$(echo "$GATEWAYS" | awk '$2=="gateway" && $NF=="REGED" {count++} END {print count+0}')
-if [ "$TOTAL_GW" -gt 0 ] && [ "$REGED_GW" -lt "$TOTAL_GW" ]; then
-    UNREG_NAMES=$(echo "$GATEWAYS" | awk '$2=="gateway" && $NF!="REGED" {print $3}' | tr '\n' ', ')
-    alert "err" "Unregistered gateways ($REGED_GW/$TOTAL_GW up): $UNREG_NAMES"
+FAILED_GW=$(echo "$GATEWAYS" | awk '$2=="gateway" && $NF!="REGED" && $NF!="NOREG" {print $3}' | tr '\n' ', ')
+if [ -n "$FAILED_GW" ]; then
+    alert "err" "Gateway issues ($TOTAL_GW total): $FAILED_GW"
     ISSUES=1
 fi
 
-# 3. Check registered phone count
-REG_COUNT=$(timeout 10 /usr/bin/fs_cli -x 'sofia status profile external reg' 2>/dev/null | grep -c 'Call-ID:')
+# 3. Check registered phone count (both internal and external profiles)
+# FusionPBX may register phones on either profile depending on configuration.
+REG_INT=$(timeout 10 /usr/bin/fs_cli -x 'sofia status profile internal reg' 2>/dev/null | grep -c 'Call-ID:')
+REG_EXT=$(timeout 10 /usr/bin/fs_cli -x 'sofia status profile external reg' 2>/dev/null | grep -c 'Call-ID:')
+REG_COUNT=$(( REG_INT + REG_EXT ))
 if [ "$REG_COUNT" -eq 0 ]; then
-    alert "err" "No phones registered on external profile"
+    alert "err" "No phones registered on any profile"
     ISSUES=1
-elif [ "$REG_COUNT" -lt 5 ]; then
+elif [ "$REG_COUNT" -lt 3 ]; then
     alert "warning" "Low phone registration count: $REG_COUNT phones"
     ISSUES=1
 fi
@@ -72,6 +76,6 @@ if [ "$ISSUES" -eq 0 ]; then
     COUNT=$(( (COUNT + 1) % 6 ))
     echo "$COUNT" > "$COUNTER_FILE"
     if [ "$COUNT" -eq 0 ]; then
-        logger -t "$LOG_TAG" "OK: $REG_COUNT phones, $REGED_GW/$TOTAL_GW gateways, mem ${MEM_AVAIL}MB, disk ${DISK_USE}%"
+        logger -t "$LOG_TAG" "OK: $REG_COUNT phones, $TOTAL_GW gateways, mem ${MEM_AVAIL}MB, disk ${DISK_USE}%"
     fi
 fi

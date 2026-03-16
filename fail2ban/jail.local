@@ -5,6 +5,8 @@ protocol = ssh
 filter   = sshd
 logpath  = /var/log/auth.log
 action   = iptables-allports[name=sshd, protocol=all]
+# Add your admin IP(s) here to avoid lockout
+ignoreip = 127.0.0.1/8
 maxretry = 6
 findtime = 60
 bantime  = 86400
@@ -16,7 +18,8 @@ protocol = all
 filter   = freeswitch
 logpath  = /var/log/freeswitch/freeswitch.log
 action   = iptables-allports[name=freeswitch, protocol=all]
-ignoreip = 127.0.0.1/8  # Add your SIP provider gateway IPs here
+# Add your SIP provider gateway IPs here
+ignoreip = 127.0.0.1/8
 ignorecommand = /usr/local/bin/fail2ban-check-registered.sh <ip>
 maxretry = 5
 findtime = 120
@@ -40,7 +43,8 @@ protocol = all
 filter   = freeswitch-ip
 logpath  = /var/log/freeswitch/freeswitch.log
 action   = iptables-allports[name=freeswitch-ip, protocol=all]
-ignoreip = 127.0.0.1/8  # Add your SIP provider gateway IPs here
+# Add your SIP provider gateway IPs here
+ignoreip = 127.0.0.1/8
 ignorecommand = /usr/local/bin/fail2ban-check-registered.sh <ip>
 maxretry = 1
 findtime = 60
@@ -53,7 +57,8 @@ protocol = all
 filter   = freeswitch-scan
 logpath  = /var/log/freeswitch/freeswitch.log
 action   = iptables-allports[name=freeswitch-scan, protocol=all]
-ignoreip = 127.0.0.1/8  # Add your SIP provider gateway IPs here
+# Add your SIP provider gateway IPs here
+ignoreip = 127.0.0.1/8
 ignorecommand = /usr/local/bin/fail2ban-check-registered.sh <ip>
 maxretry = 5
 findtime = 120
