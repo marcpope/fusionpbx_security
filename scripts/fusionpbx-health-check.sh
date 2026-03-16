@@ -25,14 +25,24 @@ if [ $? -ne 0 ] || [ -z "$FS_STATUS" ]; then
 fi
 
 # 2. Check gateway registrations
-# Gateways using IP-based auth (e.g. BulkVS, AWS Chime) show NOREG which is normal.
-# Only alert on states like FAIL_WAIT, TRYING, UNREGED — not REGED or NOREG.
+# Only alert if a gateway was also down on the previous check (persisted to file).
+# This avoids false alerts from momentary re-registration blips.
+# NOREG is normal for IP-auth gateways (e.g. BulkVS, AWS Chime).
 GATEWAYS=$(timeout 10 /usr/bin/fs_cli -x 'sofia status' 2>/dev/null)
 TOTAL_GW=$(echo "$GATEWAYS" | awk '$2=="gateway" {total++} END {print total+0}')
-FAILED_GW=$(echo "$GATEWAYS" | awk '$2=="gateway" && $NF!="REGED" && $NF!="NOREG" {print $3}' | tr '\n' ', ')
-if [ -n "$FAILED_GW" ]; then
-    alert "err" "Gateway issues ($TOTAL_GW total): $FAILED_GW"
-    ISSUES=1
+UNREG_NOW=$(echo "$GATEWAYS" | awk '$2=="gateway" && $NF!="REGED" && $NF!="NOREG" {print $3}' | sort)
+GW_STATE_FILE="/tmp/fusionpbx-gw-down"
+PREV_UNREG=$(cat "$GW_STATE_FILE" 2>/dev/null)
+if [ -n "$UNREG_NOW" ]; then
+    echo "$UNREG_NOW" > "$GW_STATE_FILE"
+    # Alert on gateways that were also down last check
+    STILL_DOWN=$(comm -12 <(echo "$PREV_UNREG") <(echo "$UNREG_NOW") | tr '\n' ', ')
+    if [ -n "$STILL_DOWN" ]; then
+        alert "err" "Gateway(s) down for 10+ min: $STILL_DOWN"
+        ISSUES=1
+    fi
+else
+    rm -f "$GW_STATE_FILE"
 fi
 
 # 3. Check registered phone count (both internal and external profiles)
