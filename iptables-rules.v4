@@ -1,0 +1,59 @@
+# Reference iptables rules for FusionPBX/FreeSwitch
+# Adapt to your environment before loading
+#
+# Load with: sudo cp iptables-rules.v4 /etc/iptables/rules.v4 && sudo netfilter-persistent reload
+#
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+:f2b-sshd - [0:0]
+:sip-auth-fail - [0:0]
+:sip-auth-ip - [0:0]
+-A INPUT -j f2b-sshd
+-A INPUT -p tcp -m multiport --dports 22 -j f2b-sshd
+-A INPUT -j sip-auth-fail
+-A INPUT -j sip-auth-ip
+-A INPUT -i lo -j ACCEPT
+-A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+# Block known SIP scanning user agents
+-A INPUT -p udp -m udp --dport 5060:5091 -m string --string "friendly-scanner" --algo bm --icase -j DROP
+-A INPUT -p tcp -m tcp --dport 5060:5091 -m string --string "friendly-scanner" --algo bm --icase -j DROP
+-A INPUT -p udp -m udp --dport 5060:5091 -m string --string "sipcli/" --algo bm --icase -j DROP
+-A INPUT -p tcp -m tcp --dport 5060:5091 -m string --string "sipcli/" --algo bm --icase -j DROP
+-A INPUT -p udp -m udp --dport 5060:5091 -m string --string "VaxSIPUserAgent/" --algo bm --icase -j DROP
+-A INPUT -p tcp -m tcp --dport 5060:5091 -m string --string "VaxSIPUserAgent/" --algo bm --icase -j DROP
+-A INPUT -p udp -m udp --dport 5060:5091 -m string --string "pplsip" --algo bm --icase -j DROP
+-A INPUT -p tcp -m tcp --dport 5060:5091 -m string --string "pplsip" --algo bm --icase -j DROP
+-A INPUT -p udp -m udp --dport 5060:5091 -m string --string "system " --algo bm --icase -j DROP
+-A INPUT -p tcp -m tcp --dport 5060:5091 -m string --string "system " --algo bm --icase -j DROP
+-A INPUT -p udp -m udp --dport 5060:5091 -m string --string "exec." --algo bm --icase -j DROP
+-A INPUT -p tcp -m tcp --dport 5060:5091 -m string --string "exec." --algo bm --icase -j DROP
+-A INPUT -p udp -m udp --dport 5060:5091 -m string --string "multipart/mixed;boundary" --algo bm --icase -j DROP
+-A INPUT -p tcp -m tcp --dport 5060:5091 -m string --string "multipart/mixed;boundary" --algo bm --icase -j DROP
+# Allow services
+-A INPUT -p tcp -m tcp --dport 22 -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 80 -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 443 -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 7443 -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 5060:5091 -j ACCEPT
+-A INPUT -p udp -m udp --dport 5060:5091 -j ACCEPT
+-A INPUT -p udp -m udp --dport 16384:32768 -j ACCEPT
+-A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
+# fail2ban managed chain
+-A f2b-sshd -j RETURN
+# Add blocked IPs to these chains (manually or via FusionPBX event guard):
+# -A sip-auth-fail -s x.x.x.x/32 -j DROP
+# -A sip-auth-ip -s x.x.x.x/32 -j DROP
+COMMIT
+# QoS: DSCP marking for SIP and RTP traffic
+*mangle
+:PREROUTING ACCEPT [0:0]
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+-A OUTPUT -p udp -m udp --sport 16384:32768 -j DSCP --set-dscp 0x2e
+-A OUTPUT -p udp -m udp --sport 5060:5091 -j DSCP --set-dscp 0x1a
+-A OUTPUT -p tcp -m tcp --sport 5060:5091 -j DSCP --set-dscp 0x1a
+COMMIT
